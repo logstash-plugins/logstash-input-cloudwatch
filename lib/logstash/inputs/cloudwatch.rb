@@ -1,20 +1,24 @@
 # encoding: utf-8
 require "logstash/inputs/base"
 require "logstash/namespace"
+require "logstash/timestamp"
+require "logstash/util"
 require "logstash/plugin_mixins/aws_config"
 require "stud/interval"
 
-# Generate a repeating message.
+# Pull events from the Amazon Web Services CloudWatch API.
 #
-# This plugin is intented only as an example.
+# CloudWatch provides various metrics on EC2, EBS and SNS.
+#
+# To use this plugin, you *must* have an AWS account
 
 class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   include LogStash::PluginMixins::AwsConfig
 
   config_name "cloudwatch"
 
-  # If undefined, Logstash will complain, even if codec is unused.
-  default :codec, "plain"
+  # If undefined, LogStash will complain, even if codec is unused.
+  default :codec, "json"
 
   # Set how frequently CloudWatch should be queried
   #
@@ -28,19 +32,19 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
   # The service namespace of the metrics to fetch.
   #
-  # The default is for the EC2 service. See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/aws-namespaces.html
-  # for valid values
+  # The default is for the EC2 service. Valid values are 'AWS/EC2', 'AWS/EBS' and
+  # 'AWS/SNS'.
   config :namespace, :validate => :string, :default => 'AWS/EC2'
 
   # The instances to check.
   #
   # Either specify specific instances using this setting, or use `tag_name` and
-  # `tag_value`. The `instances` setting takes precedence.
+  # `tag_values`. The `instances` setting takes precedence.
   config :instances, :validate => :array
 
   # Specify which tag to use when determining what instances to fetch metrics for
   #
-  # You need to specify `tag_value` when using this setting. The `instances` setting
+  # You need to specify `tag_values` when using this setting. The `instances` setting
   # takes precedence.
   config :tag_name, :validate => :string
 
@@ -48,7 +52,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   #
   # You need to specify `tag_name` when using this setting. The `instances` setting
   # takes precedence.
-  config :tag_value, :validate => :array
+  config :tag_values, :validate => :array
 
   # Specify the metrics to fetch for each instance
   config :metrics, :validate => :array, :default => [ 'CPUUtilization', 'DiskReadOps', 'DiskWriteOps', 'NetworkIn', 'NetworkOut' ]
@@ -66,19 +70,22 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     require "aws-sdk"
     AWS.config(:logger => @logger)
 
-    @cloudwatch = AWS::CloudWatch.new(aws_options_hash)
-    @ec2 = AWS::EC2.new(aws_options_hash)
+    @cloudwatch = AWS::CloudWatch::Client.new(aws_options_hash)
+    @ec2 = AWS::EC2::Client.new(aws_options_hash)
 
-    # TODO Validate. either @instances or @tag_name and @tag_value needs to be set
   end # def register
 
   def run(queue)
     Stud.interval(@interval) do
+      @logger.debug('Polling CloudWatch API')
       instance_ids.each do |instance|
         metrics(instance).each do |metric|
           opts = options(metric, instance)
           @cloudwatch.get_metric_statistics(opts)[:datapoints].each do |dp|
-            event = Logstash::Event.new(dp)
+            event = LogStash::Event.new(LogStash::Util.stringify_symbols(dp))
+            event['@timestamp'] = LogStash::Timestamp.new(dp[:timestamp])
+            event['metric'] = metric
+            event['instance'] = instance
             decorate(event)
             queue << event
           end
@@ -123,16 +130,17 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
   private
   def instance_ids
-    return if @instances.count > 0
+    return @instances unless @instances.nil?
 
+    raise('Both the tag_name and tag_values needs to be set if no instances are specified') if @tag_name.nil? || @tag_values.nil?
     @instances = []
-    if @tag_name.length > 0 && @tag_value.length > 0
-      @ec2.describe_instances(filters: [ { name: "tag:#{@tag_name}", values: @tag_value } ]).each do |page|
-        page[:reservations].each do |reservation|
-          @instances += reservation[:instances].collect(&:instance_id)
-        end
+    @ec2.describe_instances(filters: [ { name: "tag:#{@tag_name}", values: @tag_values } ])[:reservation_set].each do |reservation|
+      @logger.debug reservation
+      reservation[:instances_set].each do |instance|
+        @instances.push instance[:instance_id]
       end
     end
+    @logger.debug 'Fetching metrics for the following instances', instances: @instances
     @instances
   end
 
