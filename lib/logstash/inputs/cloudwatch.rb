@@ -60,12 +60,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # Must be at least 60 seconds and in multiples of 60.
   config :period, :validate => :number, :default => 60
 
-  # The service namespace of the metrics to fetch.
-  #
-  # The default is for the EC2 service. Valid values are 'AWS/EC2', 'AWS/EBS' and
-  # 'AWS/SNS'.
-  config :namespace, :validate => :string, :default => 'AWS/EC2'
-
   # The instances to check.
   #
   # Either specify specific instances using this setting, or use `tag_name` and
@@ -91,8 +85,10 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # The default, -1, means never refresh
   config :instance_refresh, :validate => :number, :default => -1
 
-  # Specify the metrics to fetch for each instance
-  config :metrics, :validate => :array, :default => [ 'CPUUtilization', 'DiskReadOps', 'DiskWriteOps', 'NetworkIn', 'NetworkOut' ]
+  # Specify the metrics to fetch for each instance.
+  #
+  # The metrics need to be namespaced using the key of the hash: namespace => metric.
+  config :metrics, :validate => :array, :default => { 'AWS/EC2' => 'CPUUtilization', 'AWS/EC2' => 'DiskReadOps', 'AWS/EC2' => 'DiskWriteOps', 'AWS/EC2' => 'NetworkIn', 'AWS/EC2' => 'NetworkOut' }
 
   # Specify the statistics to fetch for each metric
   config :statistics, :validate => :array, :default => [ 'SampleCount', 'Average', 'Minimum', 'Maximum', 'Sum' ]
@@ -131,8 +127,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
       # Poll the instances
       instance_ids.each do |instance|
-        metrics(instance).each do |metric|
-          opts = options(metric, instance)
+        metrics(instance).each_pair do |namespace, metric|
+          opts = options(namespace, metric, instance)
           @cloudwatch.get_metric_statistics(opts)[:datapoints].each do |dp|
             event = LogStash::Event.new(LogStash::Util.stringify_symbols(dp))
             event['@timestamp'] = LogStash::Timestamp.new(dp[:timestamp])
@@ -150,9 +146,9 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   end # def run
 
   private
-  def options(metric, instance)
+  def options(namespace, metric, instance)
     {
-      namespace: @namespace,
+      namespace: namespace,
       metric_name: metric,
       dimensions: [ { name: 'InstanceId', value: instance } ],
       start_time: (Time.now - @interval).iso8601,
@@ -170,10 +166,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   private
   def metrics_available(instance)
     @metrics ||= Hash.new do |h, k|
-      opts = {
-        namespace: @namespace,
-        dimensions: [ { name: 'InstanceId', value: instance } ]
-      }
+      opts = { dimensions: [ { name: 'InstanceId', value: instance } ] }
 
       h[k] = []
       @cloudwatch.list_metrics(opts)[:metrics].each do |metrics|
@@ -198,5 +191,4 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     @logger.debug 'Fetching metrics for the following instances', instances: @instances
     @instances
   end
-
 end # class LogStash::Inputs::CloudWatch
