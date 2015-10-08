@@ -94,8 +94,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     Stud.interval(@interval) do
       @logger.debug('Polling CloudWatch API')
       # Set up the instance_refresh check
-      if @instance_refresh > 0
-        @instances = nil if (Time.now - @last_check) > @instance_refresh
+      if @instance_refresh > 0 && (Time.now - @last_check) > @instance_refresh
+        @instances = nil
         @last_check = Time.now
       end
 
@@ -108,6 +108,9 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
             event['@timestamp'] = LogStash::Timestamp.new(dp[:timestamp])
             event['metric'] = metric
             event['instance'] = instance
+            @instance_tags[instance].each do |tag|
+              event[tag[:key]] = tag[:value]
+            end
             decorate(event)
             queue << event
           end
@@ -154,13 +157,14 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   def instance_ids
     return @instances unless @instances.nil?
 
-    @instances = []
+    @instance_tags = {}
     @ec2.describe_instances(filters: [ { name: "tag:#{@tag_name}", values: @tag_values } ])[:reservation_set].each do |reservation|
       @logger.debug reservation
       reservation[:instances_set].each do |instance|
-        @instances.push instance[:instance_id]
+        @instance_tags[instance[:instance_id]] = instance[:tag_set]
       end
     end
+    @instances = @instance_tags.keys
     @logger.debug 'Fetching metrics for the following instances', instances: @instances
     @instances
   end
