@@ -25,7 +25,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # The default, `900`, means check every 15 minutes
   config :interval, :validate => :number, :default => (60 * 15)
 
-  # Set the granularity of the retruned datapoints.
+  # Set the granularity of the returned datapoints.
   #
   # Must be at least 60 seconds and in multiples of 60.
   config :period, :validate => :number, :default => 60
@@ -54,6 +54,13 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # takes precedence.
   config :tag_values, :validate => :array
 
+  # Set how frequently the available instances should be refreshed. Making it less
+  # than `interval` doesn't really make sense. This cannot be used along with the
+  # `instances` setting.
+  #
+  # The default, -1, means never refresh
+  config :instance_refresh, :validate => :number, :default => -1
+
   # Specify the metrics to fetch for each instance
   config :metrics, :validate => :array, :default => [ 'CPUUtilization', 'DiskReadOps', 'DiskWriteOps', 'NetworkIn', 'NetworkOut' ]
 
@@ -70,14 +77,29 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     require "aws-sdk"
     AWS.config(:logger => @logger)
 
+    if @instances
+      raise LogStash::ConfigurationError, 'Should not specify both `instance_refresh` and `instances`' if @instance_refresh > 0
+      raise LogStash::ConfigurationError, 'Should not specify both `tag_name` and `instances`' unless @tag_name.nil?
+      raise LogStash::ConfigurationError, 'Should not specify both `tag_values` and `instances`' unless @tag_values.nil?
+    else
+      raise LogStash::ConfigurationError, 'Both `tag_name` and `tag_values` need to be specified if no `instances` are specified' if @tag_name.nil? || @tag_values.nil?
+    end
+
     @cloudwatch = AWS::CloudWatch::Client.new(aws_options_hash)
     @ec2 = AWS::EC2::Client.new(aws_options_hash)
-
+    @last_check = Time.now
   end # def register
 
   def run(queue)
     Stud.interval(@interval) do
       @logger.debug('Polling CloudWatch API')
+      # Set up the instance_refresh check
+      if @instance_refresh > 0
+        @instances = nil if (Time.now - @last_check) > @instance_refresh
+        @last_check = Time.now
+      end
+
+      # Poll the instances
       instance_ids.each do |instance|
         metrics(instance).each do |metric|
           opts = options(metric, instance)
@@ -132,7 +154,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   def instance_ids
     return @instances unless @instances.nil?
 
-    raise('Both the tag_name and tag_values needs to be set if no instances are specified') if @tag_name.nil? || @tag_values.nil?
     @instances = []
     @ec2.describe_instances(filters: [ { name: "tag:#{@tag_name}", values: @tag_values } ])[:reservation_set].each do |reservation|
       @logger.debug reservation
