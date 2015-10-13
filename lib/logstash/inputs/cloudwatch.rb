@@ -10,7 +10,36 @@ require "stud/interval"
 #
 # CloudWatch provides various metrics on EC2, EBS and SNS.
 #
-# To use this plugin, you *must* have an AWS account
+# To use this plugin, you *must* have an AWS account, and the following policy
+#
+# Typically, you should setup an IAM policy, create a user and apply the IAM policy to the user.
+# A sample policy is as follows:
+# [source,json]
+#     {
+#         "Version": "2012-10-17",
+#         "Statement": [
+#             {
+#                 "Sid": "Stmt1444715676000",
+#                 "Effect": "Allow",
+#                 "Action": [
+#                     "cloudwatch:GetMetricStatistics",
+#                     "cloudwatch:ListMetrics"
+#                 ],
+#                 "Resource": "*"
+#             },
+#             {
+#                 "Sid": "Stmt1444716576170",
+#                 "Effect": "Allow",
+#                 "Action": [
+#                     "ec2:DescribeInstances"
+#                 ],
+#                 "Resource": "*"
+#             }
+#         ]
+#     }
+#
+# See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
+#
 
 class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   include LogStash::PluginMixins::AwsConfig
@@ -22,7 +51,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
   # Set how frequently CloudWatch should be queried
   #
-  # The default, `900`, means check every 15 minutes
+  # The default, `900`, means check every 15 minutes. Setting this value too low
+  # (generally less than 300) results in no metrics being returned from CloudWatch.
   config :interval, :validate => :number, :default => (60 * 15)
 
   # Set the granularity of the returned datapoints.
