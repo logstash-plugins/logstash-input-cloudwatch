@@ -8,12 +8,17 @@ require "stud/interval"
 
 # Pull events from the Amazon Web Services CloudWatch API.
 #
-# CloudWatch provides various metrics on EC2, EBS and SNS.
+# TODO:  We have two options:
+# 1. Namespace the plugin. Have a namespace option, and only allow metrics for that namespace.
+# This simplifies the client code, and will also prevent configs where you're trying to fetch
+# EC2 metrics from S3.
+# 2. Supercharge the settings to be able to namespace everything. It will be complicated, and
+# probably result in a lot of misconfigurations and confusion.
 #
 # To use this plugin, you *must* have an AWS account, and the following policy
 #
 # Typically, you should setup an IAM policy, create a user and apply the IAM policy to the user.
-# A sample policy is as follows:
+# A sample policy for EC2 metrics is as follows:
 # [source,json]
 #     {
 #         "Version": "2012-10-17",
@@ -49,6 +54,18 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # If undefined, LogStash will complain, even if codec is unused.
   default :codec, "json"
 
+  # The service namespace of the metrics to fetch.
+  #
+  # The default is for the EC2 service. See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/aws-namespaces.html
+  # for valid values.
+  config :namespace, :validate => :string, :default => 'AWS/EC2'
+
+  # Specify the metrics to fetch for the namespace.
+  config :metrics, :validate => :array, :default => [ 'CPUUtilization', 'DiskReadOps', 'DiskWriteOps', 'NetworkIn', 'NetworkOut' ]
+
+  # Specify the statistics to fetch for each namespace
+  config :statistics, :validate => :array, :default => [ 'SampleCount', 'Average', 'Minimum', 'Maximum', 'Sum' ]
+
   # Set how frequently CloudWatch should be queried
   #
   # The default, `900`, means check every 15 minutes. Setting this value too low
@@ -58,40 +75,15 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # Set the granularity of the returned datapoints.
   #
   # Must be at least 60 seconds and in multiples of 60.
-  config :period, :validate => :number, :default => 60
+  config :period, :validate => :number, :default => (60 * 5)
 
-  # The instances to check.
+  # Specify the filters to apply when fetching resources:
   #
-  # Either specify specific instances using this setting, or use `tag_name` and
-  # `tag_values`. The `instances` setting takes precedence.
-  config :instances, :validate => :array
-
-  # Specify which tag to use when determining what instances to fetch metrics for
-  #
-  # You need to specify `tag_values` when using this setting. The `instances` setting
-  # takes precedence.
-  config :tag_name, :validate => :string
-
-  # Specify which tag value to check when determining what instances to fetch metrics for
-  #
-  # You need to specify `tag_name` when using this setting. The `instances` setting
-  # takes precedence.
-  config :tag_values, :validate => :array
-
-  # Set how frequently the available instances should be refreshed. Making it less
-  # than `interval` doesn't really make sense. This cannot be used along with the
-  # `instances` setting.
-  #
-  # The default, -1, means never refresh
-  config :instance_refresh, :validate => :number, :default => -1
-
-  # Specify the metrics to fetch for each instance.
-  #
-  # The metrics need to be namespaced using the key of the hash: namespace => metric.
-  config :metrics, :validate => :array, :default => { 'AWS/EC2' => 'CPUUtilization', 'AWS/EC2' => 'DiskReadOps', 'AWS/EC2' => 'DiskWriteOps', 'AWS/EC2' => 'NetworkIn', 'AWS/EC2' => 'NetworkOut' }
-
-  # Specify the statistics to fetch for each metric
-  config :statistics, :validate => :array, :default => [ 'SampleCount', 'Average', 'Minimum', 'Maximum', 'Sum' ]
+  # This needs to follow the AWS convention of specifiying filters.
+  # Instances: { 'instance-id' => 'i-12344321' }
+  # Tags: { "tag:Environment" => "Production" }
+  # Volumes: { 'attachment.status' => 'attached' }
+  config :filters, :validate => :array
 
   public
   def aws_service_endpoint(region)
@@ -103,42 +95,35 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     require "aws-sdk"
     AWS.config(:logger => @logger)
 
-    if @instances
-      raise LogStash::ConfigurationError, 'Should not specify both `instance_refresh` and `instances`' if @instance_refresh > 0
-      raise LogStash::ConfigurationError, 'Should not specify both `tag_name` and `instances`' unless @tag_name.nil?
-      raise LogStash::ConfigurationError, 'Should not specify both `tag_values` and `instances`' unless @tag_values.nil?
-    else
-      raise LogStash::ConfigurationError, 'Both `tag_name` and `tag_values` need to be specified if no `instances` are specified' if @tag_name.nil? || @tag_values.nil?
-    end
-
-    @cloudwatch = AWS::CloudWatch::Client.new(aws_options_hash)
-    @ec2 = AWS::EC2::Client.new(aws_options_hash)
+    # Initialize all the clients
+    [@namespace, 'CloudWatch'].each { |ns| clients[ns] }
     @last_check = Time.now
   end # def register
 
   def run(queue)
     Stud.interval(@interval) do
       @logger.debug('Polling CloudWatch API')
-      # Set up the instance_refresh check
-      if @instance_refresh > 0 && (Time.now - @last_check) > @instance_refresh
-        @instances = nil
-        @last_check = Time.now
-      end
 
-      # Poll the instances
-      instance_ids.each do |instance|
-        metrics(instance).each_pair do |namespace, metric|
-          opts = options(namespace, metric, instance)
-          @cloudwatch.get_metric_statistics(opts)[:datapoints].each do |dp|
-            event = LogStash::Event.new(LogStash::Util.stringify_symbols(dp))
-            event['@timestamp'] = LogStash::Timestamp.new(dp[:timestamp])
-            event['metric'] = metric
-            event['instance'] = instance
-            @instance_tags[instance].each do |tag|
-              event[tag[:key]] = tag[:value]
+      raise 'No metrics to query' unless metrics_for(@namespace).count > 0
+
+      metrics_for(@namespace).each do |metric|
+        @logger.debug "Polling metric #{metric}"
+        resources.each_pair do |dim_name, dim_resources|
+          dim_resources.each do |resource|
+            @logger.debug "Polling resource #{resource}"
+            opts = options(@namespace, metric, dim_name, resource)
+            clients['CloudWatch'].get_metric_statistics(opts)[:datapoints].each do |dp|
+              event = LogStash::Event.new(LogStash::Util.stringify_symbols(dp))
+              event['@timestamp'] = LogStash::Timestamp.new(dp[:timestamp])
+              event['metric'] = metric
+              # TODO
+              # event['resource'] = resource
+              # @resource_tags[resource].each do |tag|
+              #   event[tag[:key]] = tag[:value]
+              # end
+              decorate(event)
+              queue << event
             end
-            decorate(event)
-            queue << event
           end
         end
       end
@@ -146,30 +131,28 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   end # def run
 
   private
-  def options(namespace, metric, instance)
-    {
-      namespace: namespace,
-      metric_name: metric,
-      dimensions: [ { name: 'InstanceId', value: instance } ],
-      start_time: (Time.now - @interval).iso8601,
-      end_time: Time.now.iso8601,
-      period: @period,
-      statistics: @statistics
-    }
+  def clients
+    @clients ||= Hash.new do |h, k|
+      k = k[4..-1] if k[0..3] == 'AWS/'
+      k = 'EC2' if k == 'EBS'
+      name = "AWS::#{h}::Client"
+      cls = Object.const_get(name)
+      h[k] = cls.new(aws_options_hash)
+    end
   end
 
   private
-  def metrics(instance)
-    metrics_available(instance) & @metrics
+  def metrics_for(namespace)
+    metrics_available[namespace] & @metrics
   end
 
   private
-  def metrics_available(instance)
-    @metrics ||= Hash.new do |h, k|
-      opts = { dimensions: [ { name: 'InstanceId', value: instance } ] }
-
+  def metrics_available
+    @metrics_available ||= Hash.new do |h, k|
       h[k] = []
-      @cloudwatch.list_metrics(opts)[:metrics].each do |metrics|
+
+      opts = { namespace: k }
+      clients['CloudWatch'].list_metrics(opts)[:metrics].each do |metrics|
         h[k].push metrics[:metric_name]
       end
       h[k]
@@ -177,18 +160,45 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   end
 
   private
-  def instance_ids
-    return @instances unless @instances.nil?
+  def options(namespace, metric, name, value)
+    {
+      namespace: namespace,
+      metric_name: metric,
+      start_time: (Time.now - @interval).iso8601,
+      end_time: Time.now.iso8601,
+      period: @period,
+      statistics: @statistics,
+      dimensions: [
+        { name: name, value: value }
+      ]
+    }
+  end
 
-    @instance_tags = {}
-    @ec2.describe_instances(filters: [ { name: "tag:#{@tag_name}", values: @tag_values } ])[:reservation_set].each do |reservation|
-      @logger.debug reservation
-      reservation[:instances_set].each do |instance|
-        @instance_tags[instance[:instance_id]] = instance[:tag_set]
-      end
+  private
+  def aws_filters
+    @filters.map do |key, value|
+      value = [value] unless value.is_a? Array
+      { name: key, values: value }
     end
-    @instances = @instance_tags.keys
-    @logger.debug 'Fetching metrics for the following instances', instances: @instances
-    @instances
+  end
+
+  private
+  def resources
+    # See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/CW_Support_For_AWS.html
+    @logger.debug "Filters: #{aws_filters}"
+    case @namespace
+    when 'AWS/EC2'
+      instances = []
+      clients[@namespace].describe_instances(filters: aws_filters)[:reservations].map do |r|
+        instances += r[:instances].collect(&:instance_id)
+      end
+      { 'InstanceId' => instances }
+    when 'AWS/EBS'
+      volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volumes].collect(&:volume_id)
+      { 'VolumeId' => volumes }
+    when 'AWS/RDS'
+      raise
+      { 'DBInstanceIdentifier' => clients[@namespace].describe_db_instances(filters: aws_filters) }
+    end
   end
 end # class LogStash::Inputs::CloudWatch
