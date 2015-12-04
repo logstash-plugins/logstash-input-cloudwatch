@@ -119,11 +119,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
               event = LogStash::Event.new(LogStash::Util.stringify_symbols(dp))
               event['@timestamp'] = LogStash::Timestamp.new(dp[:timestamp])
               event['metric'] = metric
-              # TODO
-              # event['resource'] = resource
-              # @resource_tags[resource].each do |tag|
-              #   event[tag[:key]] = tag[:value]
-              # end
+              event[dim_name] = resource
               decorate(event)
               queue << event
             end
