@@ -1,9 +1,8 @@
 # encoding: utf-8
 require "logstash/inputs/base"
 require "logstash/namespace"
-require "logstash/timestamp"
-require "logstash/util"
 require "logstash/plugin_mixins/aws_config"
+require "logstash/util"
 require "stud/interval"
 
 # Pull events from the Amazon Web Services CloudWatch API.
@@ -74,7 +73,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   config_name "cloudwatch"
 
   # If undefined, LogStash will complain, even if codec is unused.
-  default :codec, "json"
+  default :codec, "plain"
 
   # The service namespace of the metrics to fetch.
   #
