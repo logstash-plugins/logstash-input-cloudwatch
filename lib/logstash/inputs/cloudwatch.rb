@@ -102,25 +102,20 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
   def run(queue)
     Stud.interval(@interval) do
-      @logger.debug('Polling CloudWatch API')
+      @logger.info('Polling CloudWatch API')
 
       raise 'No metrics to query' unless metrics_for(@namespace).count > 0
 
+      # For every metric
       metrics_for(@namespace).each do |metric|
-        @logger.debug "Polling metric #{metric}"
-        resources.each_pair do |dim_name, dim_resources|
-          dim_resources = [ dim_resources ] unless dim_resources.is_a? Array
+        @logger.info "Polling metric #{metric}"
+        # For every dimension in the metric
+        resources.each_pair do |dimension, dim_resources|
+          # For every resource in the dimension
+          dim_resources = *dim_resources
           dim_resources.each do |resource|
-            @logger.debug "Polling resource #{resource}"
-            opts = options(@namespace, metric, dim_name, resource)
-            datapoints = clients['CloudWatch'].get_metric_statistics(opts)
-            @logger.debug "DPs: #{datapoints.data}"
-            datapoints[:datapoints].each do |dp|
-              event = LogStash::Event.new(LogStash::Util.stringify_symbols(dp))
-              event['@timestamp'] = LogStash::Timestamp.new(dp[:timestamp])
-              event['metric'] = metric
-              event[dim_name] = resource
-              decorate(event)
+            # For every event in the resource
+            fetch_resource_events(dimension, resource, metric_options(@namespace, metric)).each do |event|
               queue << event
             end
           end
@@ -128,6 +123,30 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       end
     end # loop
   end # def run
+
+  def fetch_resource_events(dimension, resource, options)
+    @logger.info "Polling resource #{dimension}: #{resource}"
+    options[:dimensions] = [ { name: dimension, value: resource } ]
+    datapoints = clients['CloudWatch'].get_metric_statistics(options)
+    @logger.debug "DPs: #{datapoints.data}"
+    datapoints[:datapoints].each do |event|
+      event.merge! options
+      event[dimension.to_sym] = resource
+      event = LogStash::Event.new(cleanup(event))
+      @logger.debug "Event #{event}"
+      @logger.debug "Time #{Time.now}"
+      decorate(event)
+    end
+  end
+
+  def cleanup(event)
+    event.delete :statistics
+    event.delete :dimensions
+    event[:start_time] = Time.parse(event[:start_time]).utc
+    event[:end_time]   = Time.parse(event[:end_time]).utc
+    event[:timestamp]  = event[:end_time]
+    LogStash::Util.stringify_symbols(event)
+  end
 
   private
   def clients
@@ -149,8 +168,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     @metrics_available ||= Hash.new do |h, k|
       h[k] = []
 
-      opts = { namespace: k }
-      clients['CloudWatch'].list_metrics(opts)[:metrics].each do |metrics|
+      options = { namespace: k }
+      clients['CloudWatch'].list_metrics(options)[:metrics].each do |metrics|
         h[k].push metrics[:metric_name]
       end
       h[k]
@@ -158,17 +177,14 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   end
 
   private
-  def options(namespace, metric, name, value)
+  def metric_options(namespace, metric)
     {
       namespace: namespace,
       metric_name: metric,
       start_time: (Time.now - @interval).iso8601,
       end_time: Time.now.iso8601,
       period: @period,
-      statistics: @statistics,
-      dimensions: [
-        { name: name, value: value }
-      ]
+      statistics: @statistics
     }
   end
 
@@ -183,7 +199,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   private
   def resources
     # See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/CW_Support_For_AWS.html
-    @logger.debug "Filters: #{aws_filters}"
+    @logger.info "Filters: #{aws_filters}"
     case @namespace
     when 'AWS/EC2'
       instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
