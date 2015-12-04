@@ -109,10 +109,13 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       metrics_for(@namespace).each do |metric|
         @logger.debug "Polling metric #{metric}"
         resources.each_pair do |dim_name, dim_resources|
+          dim_resources = [ dim_resources ] unless dim_resources.is_a? Array
           dim_resources.each do |resource|
             @logger.debug "Polling resource #{resource}"
             opts = options(@namespace, metric, dim_name, resource)
-            clients['CloudWatch'].get_metric_statistics(opts)[:datapoints].each do |dp|
+            datapoints = clients['CloudWatch'].get_metric_statistics(opts)
+            @logger.debug "DPs: #{datapoints.data}"
+            datapoints[:datapoints].each do |dp|
               event = LogStash::Event.new(LogStash::Util.stringify_symbols(dp))
               event['@timestamp'] = LogStash::Timestamp.new(dp[:timestamp])
               event['metric'] = metric
@@ -135,9 +138,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     @clients ||= Hash.new do |h, k|
       k = k[4..-1] if k[0..3] == 'AWS/'
       k = 'EC2' if k == 'EBS'
-      name = "AWS::#{h}::Client"
-      cls = Object.const_get(name)
-      h[k] = cls.new(aws_options_hash)
+      cls = AWS.const_get(k)
+      h[k] = cls::Client.new(aws_options_hash)
     end
   end
 
@@ -176,7 +178,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
   private
   def aws_filters
-    @filters.map do |key, value|
+    @filters.collect do |key, value|
       value = [value] unless value.is_a? Array
       { name: key, values: value }
     end
@@ -188,17 +190,19 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     @logger.debug "Filters: #{aws_filters}"
     case @namespace
     when 'AWS/EC2'
-      instances = []
-      clients[@namespace].describe_instances(filters: aws_filters)[:reservations].map do |r|
-        instances += r[:instances].collect(&:instance_id)
-      end
+      instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
+        r[:instances_set].collect{ |i| i[:instance_id] }
+      end.flatten
+      @logger.debug "AWS/EC2 Instances: #{instances}"
       { 'InstanceId' => instances }
     when 'AWS/EBS'
-      volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volumes].collect(&:volume_id)
+      volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volume_set].collect do |a|
+        a[:attachment_set].collect{ |v| v[:volume_id] }
+      end.flatten
+      @logger.debug "AWS/EBS Volumes: #{volumes}"
       { 'VolumeId' => volumes }
     when 'AWS/RDS'
-      raise
-      { 'DBInstanceIdentifier' => clients[@namespace].describe_db_instances(filters: aws_filters) }
+      @filters
     end
   end
 end # class LogStash::Inputs::CloudWatch
