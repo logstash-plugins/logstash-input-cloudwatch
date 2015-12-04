@@ -237,6 +237,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       { 'VolumeId' => volumes }
     when 'AWS/RDS'
       @filters
+    when 'AWS/ELB'
+      @filters
     end
   end
 end # class LogStash::Inputs::CloudWatch
