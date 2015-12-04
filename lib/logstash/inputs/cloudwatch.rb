@@ -8,13 +8,6 @@ require "stud/interval"
 
 # Pull events from the Amazon Web Services CloudWatch API.
 #
-# TODO:  We have two options:
-# 1. Namespace the plugin. Have a namespace option, and only allow metrics for that namespace.
-# This simplifies the client code, and will also prevent configs where you're trying to fetch
-# EC2 metrics from S3.
-# 2. Supercharge the settings to be able to namespace everything. It will be complicated, and
-# probably result in a lot of misconfigurations and confusion.
-#
 # To use this plugin, you *must* have an AWS account, and the following policy
 #
 # Typically, you should setup an IAM policy, create a user and apply the IAM policy to the user.
@@ -45,6 +38,35 @@ require "stud/interval"
 #
 # See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
 #
+# # Configuration Example
+# [source, ruby]
+#     input {
+#       cloudwatch {
+#         namespace => "AWS/EC2"
+#         metrics => [ "CPUUtilization" ]
+#         filters => { "tag:Group" => "API-Production" }
+#         region => "us-east-1"
+#       }
+#     }
+#
+#     input {
+#       cloudwatch {
+#         namespace => "AWS/EBS"
+#         metrics => ["VolumeQueueLength"]
+#         filters => { "tag:Monitoring" => "Yes" }
+#         region => "us-east-1"
+#       }
+#     }
+#
+#     input {
+#       cloudwatch {
+#         namespace => "AWS/RDS"
+#         metrics => ["CPUUtilization", "CPUCreditUsage"]
+#         filters => { "EngineName" => "mysql" } # Only supports EngineName, DatabaseClass and DBInstanceIdentifier
+#         region => "us-east-1"
+#       }
+#     }
+#
 
 class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   include LogStash::PluginMixins::AwsConfig
@@ -60,7 +82,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # for valid values.
   config :namespace, :validate => :string, :default => 'AWS/EC2'
 
-  # Specify the metrics to fetch for the namespace.
+  # Specify the metrics to fetch for the namespace. The defaults are AWS/EC2 specific. See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/aws-namespaces.html
+  # for the available metrics for other namespaces.
   config :metrics, :validate => :array, :default => [ 'CPUUtilization', 'DiskReadOps', 'DiskWriteOps', 'NetworkIn', 'NetworkOut' ]
 
   # Specify the statistics to fetch for each namespace
@@ -83,6 +106,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # Instances: { 'instance-id' => 'i-12344321' }
   # Tags: { "tag:Environment" => "Production" }
   # Volumes: { 'attachment.status' => 'attached' }
+  # Each namespace uniquely support certian dimensions. Please consult the documentation
+  # to ensure you're using valid filters.
   config :filters, :validate => :array
 
   public
@@ -133,8 +158,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       event.merge! options
       event[dimension.to_sym] = resource
       event = LogStash::Event.new(cleanup(event))
-      @logger.debug "Event #{event}"
-      @logger.debug "Time #{Time.now}"
       decorate(event)
     end
   end
