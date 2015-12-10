@@ -109,9 +109,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # to ensure you're using valid filters.
   config :filters, :validate => :array
 
+  # Use this for namespaces that need to combine the dimensions like S3 and SNS.
   config :combined, :validate => :boolean, :default => false
-
-  SUPPORTED_NAMESPACES = ['AWS/EC2', 'AWS/EBS', 'AWS/RDS', 'AWS/ELB', 'AWS/SNS', 'AWS/SQS', 'AWS/S3']
 
   public
   def aws_service_endpoint(region)
@@ -123,12 +122,10 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     require "aws-sdk"
     AWS.config(:logger => @logger)
 
-    raise 'Unsupported namespace ' + @namespace unless SUPPORTED_NAMESPACES.include? @namespace
+    raise 'Unsupported namespace ' + @namespace unless @namespace[0..3] == 'AWS/'
     raise 'Interval needs to be higher than period' unless @interval >= @period
     raise 'Interval must be divisible by peruid' unless @interval % @period == 0
 
-    # Initialize all the clients
-    [@namespace, 'CloudWatch'].each { |ns| clients[ns] }
     @last_check = Time.now
   end # def register
 
