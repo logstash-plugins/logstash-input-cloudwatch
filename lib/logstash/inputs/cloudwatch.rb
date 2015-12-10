@@ -243,11 +243,11 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   private
   def aws_filters
     @filters.collect do |key, value|
-      if ['AWS/EC2', 'AWS/EBS'].include?(@namespace)
+      if @combined
+        { name: key, value: value }
+      else
         value = [value] unless value.is_a? Array
         { name: key, values: value }
-      else
-        { name: key, value: value }
       end
     end
   end
