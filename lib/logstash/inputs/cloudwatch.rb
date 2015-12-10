@@ -109,6 +109,10 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # to ensure you're using valid filters.
   config :filters, :validate => :array
 
+  config :combined, :validate => :boolean, :default => false
+
+  SUPPORTED_NAMESPACES = ['AWS/EC2', 'AWS/EBS', 'AWS/RDS', 'AWS/ELB', 'AWS/SNS', 'AWS/SQS', 'AWS/S3']
+
   public
   def aws_service_endpoint(region)
     { region: region }
@@ -118,6 +122,10 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   def register
     require "aws-sdk"
     AWS.config(:logger => @logger)
+
+    raise 'Unsupported namespace ' + @namespace unless SUPPORTED_NAMESPACES.include? @namespace
+    raise 'Interval needs to be higher than period' unless @interval >= @period
+    raise 'Interval must be divisible by peruid' unless @interval % @period == 0
 
     # Initialize all the clients
     [@namespace, 'CloudWatch'].each { |ns| clients[ns] }
@@ -133,21 +141,45 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       # For every metric
       metrics_for(@namespace).each do |metric|
         @logger.info "Polling metric #{metric}"
-        # For every dimension in the metric
-        resources.each_pair do |dimension, dim_resources|
-          # For every resource in the dimension
-          dim_resources = *dim_resources
-          dim_resources.each do |resource|
-            # For every event in the resource
-            fetch_resource_events(dimension, resource, metric_options(@namespace, metric)).each do |event|
-              queue << event
-            end
-          end
-        end
+        @logger.info "Filters: #{aws_filters}"
+        @combined ? from_filters(queue, metric) : from_resources(queue, metric)
       end
     end # loop
   end # def run
 
+  def from_resources(queue, metric)
+    # For every dimension in the metric
+    resources.each_pair do |dimension, dim_resources|
+      # For every resource in the dimension
+      dim_resources = *dim_resources
+      dim_resources.each do |resource|
+        # For every event in the resource
+        fetch_resource_events(dimension, resource, metric_options(@namespace, metric)).each do |event|
+          queue << event
+        end
+      end
+    end
+  end
+
+  private
+  def from_filters(queue, metric)
+    options = metric_options(@namespace, metric)
+    options[:dimensions] = aws_filters
+    @logger.info "Dim: #{options[:dimensions]}"
+    datapoints = clients['CloudWatch'].get_metric_statistics(options)
+    @logger.debug "DPs: #{datapoints.data}"
+    datapoints[:datapoints].each do |event|
+      event.merge! options
+      aws_filters.each do |dimension|
+        event[dimension[:name].to_sym] = dimension[:value]
+      end
+      event = LogStash::Event.new(cleanup(event))
+      decorate(event)
+      queue << event
+    end
+  end
+
+  private
   def fetch_resource_events(dimension, resource, options)
     @logger.info "Polling resource #{dimension}: #{resource}"
     options[:dimensions] = [ { name: dimension, value: resource } ]
@@ -161,6 +193,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     end
   end
 
+  private
   def cleanup(event)
     event.delete :statistics
     event.delete :dimensions
@@ -213,15 +246,18 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   private
   def aws_filters
     @filters.collect do |key, value|
-      value = [value] unless value.is_a? Array
-      { name: key, values: value }
+      if ['AWS/EC2', 'AWS/EBS'].include?(@namespace)
+        value = [value] unless value.is_a? Array
+        { name: key, values: value }
+      else
+        { name: key, value: value }
+      end
     end
   end
 
   private
   def resources
     # See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/CW_Support_For_AWS.html
-    @logger.info "Filters: #{aws_filters}"
     case @namespace
     when 'AWS/EC2'
       instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
@@ -235,9 +271,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       end.flatten
       @logger.debug "AWS/EBS Volumes: #{volumes}"
       { 'VolumeId' => volumes }
-    when 'AWS/RDS'
-      @filters
-    when 'AWS/ELB'
+    else
       @filters
     end
   end
