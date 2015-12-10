@@ -122,7 +122,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     require "aws-sdk"
     AWS.config(:logger => @logger)
 
-    raise 'Unsupported namespace ' + @namespace unless @namespace[0..3] == 'AWS/'
     raise 'Interval needs to be higher than period' unless @interval >= @period
     raise 'Interval must be divisible by peruid' unless @interval % @period == 0
 
