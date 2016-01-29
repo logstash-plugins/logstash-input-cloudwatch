@@ -4,6 +4,7 @@ require "logstash/namespace"
 require "logstash/plugin_mixins/aws_config"
 require "logstash/util"
 require "stud/interval"
+require "aws-sdk"
 
 # Pull events from the Amazon Web Services CloudWatch API.
 #
@@ -119,7 +120,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
   public
   def register
-    require "aws-sdk"
     AWS.config(:logger => @logger)
 
     raise 'Interval needs to be higher than period' unless @interval >= @period
