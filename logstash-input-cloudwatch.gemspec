@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'logstash-input-cloudwatch'
-  s.version = '1.0.5'
+  s.version = '1.0.6'
   s.licenses = ['Apache License (2.0)']
   s.summary = "Retrieve stats from AWS CloudWatch."
   s.description = "This gem is a logstash plugin required to be installed on top of the Logstash core pipeline using $LS_HOME/bin/plugin install gemname. This gem is not a stand-alone program"
