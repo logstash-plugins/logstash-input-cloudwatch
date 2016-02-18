@@ -108,7 +108,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # Volumes: { 'attachment.status' => 'attached' }
   # Each namespace uniquely support certian dimensions. Please consult the documentation
   # to ensure you're using valid filters.
-  config :filters, :validate => :array
+  config :filters, :validate => :array, :required => true
 
   # Use this for namespaces that need to combine the dimensions like S3 and SNS.
   config :combined, :validate => :boolean, :default => false
