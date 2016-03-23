@@ -108,7 +108,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # Volumes: { 'attachment.status' => 'attached' }
   # Each namespace uniquely support certian dimensions. Please consult the documentation
   # to ensure you're using valid filters.
-  config :filters, :validate => :array
+  config :filters, :validate => :array, :required => true
 
   # Use this for namespaces that need to combine the dimensions like S3 and SNS.
   config :combined, :validate => :boolean, :default => false
@@ -143,14 +143,24 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     end # loop
   end # def run
 
+  private
   def from_resources(queue, metric)
     # For every dimension in the metric
     resources.each_pair do |dimension, dim_resources|
       # For every resource in the dimension
       dim_resources = *dim_resources
       dim_resources.each do |resource|
+        @logger.info "Polling resource #{dimension}: #{resource}"
+        options = metric_options(@namespace, metric)
+        options[:dimensions] = [ { name: dimension, value: resource } ]
+        datapoints = clients['CloudWatch'].get_metric_statistics(options)
+        @logger.debug "DPs: #{datapoints.data}"
         # For every event in the resource
-        fetch_resource_events(dimension, resource, metric_options(@namespace, metric)).each do |event|
+        datapoints[:datapoints].each do |event|
+          event.merge! options
+          event[dimension.to_sym] = resource
+          event = LogStash::Event.new(cleanup(event))
+          decorate(event)
           queue << event
         end
       end
@@ -172,20 +182,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       event = LogStash::Event.new(cleanup(event))
       decorate(event)
       queue << event
-    end
-  end
-
-  private
-  def fetch_resource_events(dimension, resource, options)
-    @logger.info "Polling resource #{dimension}: #{resource}"
-    options[:dimensions] = [ { name: dimension, value: resource } ]
-    datapoints = clients['CloudWatch'].get_metric_statistics(options)
-    @logger.debug "DPs: #{datapoints.data}"
-    datapoints[:datapoints].each do |event|
-      event.merge! options
-      event[dimension.to_sym] = resource
-      event = LogStash::Event.new(cleanup(event))
-      decorate(event)
     end
   end
 
