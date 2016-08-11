@@ -108,7 +108,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # Volumes: { 'attachment.status' => 'attached' }
   # Each namespace uniquely support certian dimensions. Please consult the documentation
   # to ensure you're using valid filters.
-  config :filters, :validate => :array, :required => true
+  config :filters, :validate => :array
 
   # Use this for namespaces that need to combine the dimensions like S3 and SNS.
   config :combined, :validate => :boolean, :default => false
@@ -137,7 +137,9 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       # For every metric
       metrics_for(@namespace).each do |metric|
         @logger.info "Polling metric #{metric}"
-        @logger.info "Filters: #{aws_filters}"
+        if defined?(@filters) != nil
+          @logger.info "Filters: #{aws_filters}"
+        end
         @combined ? from_filters(queue, metric) : from_resources(queue, metric)
       end
     end # loop
@@ -170,14 +172,18 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   private
   def from_filters(queue, metric)
     options = metric_options(@namespace, metric)
-    options[:dimensions] = aws_filters
-    @logger.info "Dim: #{options[:dimensions]}"
+    if defined?(@filters) != nil
+      options[:dimensions] = aws_filters
+      @logger.info "Dim: #{options[:dimensions]}"
+    end
     datapoints = clients['CloudWatch'].get_metric_statistics(options)
     @logger.debug "DPs: #{datapoints.data}"
     datapoints[:datapoints].each do |event|
       event.merge! options
-      aws_filters.each do |dimension|
-        event[dimension[:name].to_sym] = dimension[:value]
+      if defined?(@filters) != nil
+        aws_filters.each do |dimension|
+          event[dimension[:name].to_sym] = dimension[:value]
+        end
       end
       event = LogStash::Event.new(cleanup(event))
       decorate(event)
@@ -252,15 +258,27 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     # See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/CW_Support_For_AWS.html
     case @namespace
     when 'AWS/EC2'
-      instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
-        r[:instances_set].collect{ |i| i[:instance_id] }
-      end.flatten
+      if defined?(@filters) != nil
+        instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
+          r[:instances_set].collect{ |i| i[:instance_id] }
+        end.flatten
+      else
+        instances = clients[@namespace].describe_instances()[:reservation_set].collect do |r|
+          r[:instances_set].collect{ |i| i[:instance_id] }
+        end.flatten
+      end
       @logger.debug "AWS/EC2 Instances: #{instances}"
       { 'InstanceId' => instances }
     when 'AWS/EBS'
-      volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volume_set].collect do |a|
-        a[:attachment_set].collect{ |v| v[:volume_id] }
-      end.flatten
+      if defined?(@filters) != nil
+        volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volume_set].collect do |a|
+          a[:attachment_set].collect{ |v| v[:volume_id] }
+        end.flatten
+      else
+        volumes = clients[@namespace].describe_volumes()[:volume_set].collect do |a|
+          a[:attachment_set].collect{ |v| v[:volume_id] }
+        end.flatten
+      end
       @logger.debug "AWS/EBS Volumes: #{volumes}"
       { 'VolumeId' => volumes }
     else
