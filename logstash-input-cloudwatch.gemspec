@@ -11,27 +11,19 @@ Gem::Specification.new do |s|
 
   # Files
   s.files = Dir[
-    "lib/**/*",
-    "spec/**/*",
-    "*.gemspec",
-    "*.md",
-    "CONTRIBUTORS",
-    "Gemfile",
-    "LICENSE",
-    "NOTICE.TXT",
-    "vendor/jar-dependencies/**/*.jar",
-    "vendor/jar-dependencies/**/*.rb",
-    "VERSION",
-    "docs/**/*",
-    'lib/**/*',
-    'spec/**/*',
-    'vendor/**/*',
     '*.gemspec',
     '*.md',
     'CONTRIBUTORS',
+    'docs/**/*',
     'Gemfile',
+    'lib/**/*',
     'LICENSE',
-    'NOTICE.TXT'
+    'NOTICE.TXT',
+    'spec/**/*',
+    'vendor/**/*',
+    'vendor/jar-dependencies/**/*.jar',
+    'vendor/jar-dependencies/**/*.rb',
+    'VERSION',
   ]
 
   # Tests
