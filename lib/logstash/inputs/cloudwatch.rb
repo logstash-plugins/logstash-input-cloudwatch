@@ -108,7 +108,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # Volumes: { 'attachment.status' => 'attached' }
   # Each namespace uniquely support certian dimensions. Please consult the documentation
   # to ensure you're using valid filters.
-  config :filters, :validate => :array, :required => true
+  config :filters, :validate => :array
 
   # Use this for namespaces that need to combine the dimensions like S3 and SNS.
   config :combined, :validate => :boolean, :default => false
@@ -125,6 +125,10 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     raise 'Interval needs to be higher than period' unless @interval >= @period
     raise 'Interval must be divisible by peruid' unless @interval % @period == 0
 
+    if not defined?(@filters) and not @namespace == "AWS/EC2"
+      raise 'Filters must be defined for all namespaces except AWS/EC2'
+    end
+
     @last_check = Time.now
   end # def register
 
@@ -137,8 +141,12 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       # For every metric
       metrics_for(@namespace).each do |metric|
         @logger.info "Polling metric #{metric}"
-        @logger.info "Filters: #{aws_filters}"
-        @combined ? from_filters(queue, metric) : from_resources(queue, metric)
+        if defined?(@filters) != nil
+          @logger.info "Filters: #{aws_filters}"
+          @combined ? from_filters(queue, metric) : from_resources(queue, metric)
+        else
+          from_resources(queue, metric)
+        end
       end
     end # loop
   end # def run
@@ -252,9 +260,15 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     # See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/CW_Support_For_AWS.html
     case @namespace
     when 'AWS/EC2'
-      instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
-        r[:instances_set].collect{ |i| i[:instance_id] }
-      end.flatten
+      if defined?(@filters) != nil
+        instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
+          r[:instances_set].collect{ |i| i[:instance_id] }
+        end.flatten
+      else
+        instances = clients[@namespace].describe_instances()[:reservation_set].collect do |r|
+          r[:instances_set].collect{ |i| i[:instance_id] }
+        end.flatten
+      end
       @logger.debug "AWS/EC2 Instances: #{instances}"
       { 'InstanceId' => instances }
     when 'AWS/EBS'
