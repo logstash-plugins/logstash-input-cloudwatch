@@ -288,6 +288,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   #
   # @return [Array]
   def aws_filters
+    return [] unless @filters
+
     @filters.collect do |key, value|
       if @combined
         { name: key, value: value }
@@ -326,12 +328,12 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       @logger.debug "AWS/EBS Volumes: #{volumes}"
 
       { 'VolumeId' => volumes }
-    when 'AWS/ApplicationELB'
+    when 'AWS/ELB'
       load_balancers = clients[@namespace]
         .describe_load_balancers(filters: aws_filters)[:load_balancer_descriptions]
         .flat_map { |e| e[:load_balancer_name] }
 
-      @logger.debug "AWS/ApplicationELB ELBs: #{load_balancers}"
+      @logger.debug "AWS/ELB ELBs: #{load_balancers}"
 
       { 'LoadBalancerName' => load_balancers }
     else
