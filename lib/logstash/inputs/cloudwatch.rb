@@ -116,7 +116,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   #
   # Each namespace uniquely supports certain dimensions. Consult the documentation
   # to ensure you're using valid filters.
-  config :filters, :validate => :array, :required => true
+  config :filters, :validate => :array
 
   # Use this for namespaces that need to combine the dimensions like S3 and SNS.
   config :combined, :validate => :boolean, :default => false
@@ -281,6 +281,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   #
   # @return [Array]
   def aws_filters
+    return [] unless @filters
+
     @filters.collect do |key, value|
       if @combined
         { name: key, value: value }
@@ -314,12 +316,12 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       @logger.debug "AWS/EBS Volumes: #{volumes}"
 
       { 'VolumeId' => volumes }
-    when 'AWS/ApplicationELB'
+    when 'AWS/ELB'
       load_balancers = clients[@namespace]
         .describe_load_balancers(filters: aws_filters)[:load_balancer_descriptions]
         .flat_map { |e| e[:load_balancer_name] }
 
-      @logger.debug "AWS/ApplicationELB ELBs: #{load_balancers}"
+      @logger.debug "AWS/ELB ELBs: #{load_balancers}"
 
       { 'LoadBalancerName' => load_balancers }
     else
