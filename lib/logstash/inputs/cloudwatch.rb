@@ -144,8 +144,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       raise 'No metrics to query' unless metrics_for(@namespace).count > 0
 
       metrics_for(@namespace).each do |metric|
-        @logger.info "Polling metric #{metric}"
-        @logger.info "Filters: #{aws_filters}"
+        @logger.debug "Polling metric #{metric}"
+        @logger.debug "Filters: #{aws_filters}"
         @combined ? from_filters(queue, metric) : from_resources(queue, metric)
       end
     end # loop
@@ -163,7 +163,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       # For every resource in the dimension
       dim_resources = *dim_resources
       dim_resources.each do |resource|
-        @logger.info "Polling resource #{dimension}: #{resource}"
+        @logger.debug "Polling resource #{dimension}: #{resource}"
 
         options = metric_options(@namespace, metric)
         options[:dimensions] = [ { name: dimension, value: resource } ]
@@ -190,7 +190,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   def from_filters(queue, metric)
     options = metric_options(@namespace, metric)
     options[:dimensions] = aws_filters
-    @logger.info "Dim: #{options[:dimensions]}"
+    @logger.debug "Dim: #{options[:dimensions]}"
 
     datapoints = clients['CloudWatch'].get_metric_statistics(options)
     @logger.debug "DPs: #{datapoints.data}"
