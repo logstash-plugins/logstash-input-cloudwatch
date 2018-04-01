@@ -93,13 +93,16 @@ This plugin supports the following configuration options plus the <<plugins-{typ
 | <<plugins-{type}s-{plugin}-access_key_id>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-aws_credentials_file>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-combined>> |<<boolean,boolean>>|No
+| <<plugins-{type}s-{plugin}-endpoint>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-filters>> |<<array,array>>|Yes
 | <<plugins-{type}s-{plugin}-interval>> |<<number,number>>|No
 | <<plugins-{type}s-{plugin}-metrics>> |<<array,array>>|No
 | <<plugins-{type}s-{plugin}-namespace>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-period>> |<<number,number>>|No
 | <<plugins-{type}s-{plugin}-proxy_uri>> |<<string,string>>|No
-| <<plugins-{type}s-{plugin}-region>> |<<string,string>>, one of `["us-east-1", "us-east-2", "us-west-1", "us-west-2", "eu-central-1", "eu-west-1", "eu-west-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1", "ap-northeast-2", "sa-east-1", "us-gov-west-1", "cn-north-1", "ap-south-1", "ca-central-1"]`|No
+| <<plugins-{type}s-{plugin}-region>> |<<string,string>>|No
+| <<plugins-{type}s-{plugin}-role_arn>> |<<string,string>>|No
+| <<plugins-{type}s-{plugin}-role_session_name>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-secret_access_key>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-session_token>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-statistics>> |<<array,array>>|No
@@ -150,6 +153,16 @@ file should look like this:
   * Default value is `false`
 
 Use this for namespaces that need to combine the dimensions like S3 and SNS.
+
+[id="plugins-{type}s-{plugin}-endpoint"]
+===== `endpoint`
+
+  * Value type is <<string,string>>
+  * There is no default value for this setting.
+
+The endpoint to connect to. By default it is constructed using the value of `region`.
+This is useful when connecting to S3 compatible services, but beware that these aren't
+guaranteed to work correctly with the AWS SDK.
 
 [id="plugins-{type}s-{plugin}-filters"]
 ===== `filters` 
@@ -220,10 +233,28 @@ URI to proxy server if required
 [id="plugins-{type}s-{plugin}-region"]
 ===== `region` 
 
-  * Value can be any of: `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ap-northeast-2`, `sa-east-1`, `us-gov-west-1`, `cn-north-1`, `ap-south-1`, `ca-central-1`
+  * Value type is <<string,string>>
   * Default value is `"us-east-1"`
 
 The AWS Region
+
+[id="plugins-{type}s-{plugin}-role_arn"]
+===== `role_arn`
+
+  * Value type is <<string,string>>
+  * There is no default value for this setting.
+
+The AWS IAM Role to assume, if any.
+This is used to generate temporary credentials, typically for cross-account access.
+See the https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html[AssumeRole API documentation] for more information.
+
+[id="plugins-{type}s-{plugin}-role_session_name"]
+===== `role_session_name`
+
+  * Value type is <<string,string>>
+  * Default value is `"logstash"`
+
+Session name to use when assuming an IAM role.
 
 [id="plugins-{type}s-{plugin}-secret_access_key"]
 ===== `secret_access_key` 
