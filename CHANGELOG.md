@@ -1,3 +1,7 @@
+## 2.1.0
+  - Add documentation for endpoint, role_arn and role_session_name #29
+  - Reduce info level logging verbosity #27
+
 ## 2.0.3
   - Update gemspec summary
 
