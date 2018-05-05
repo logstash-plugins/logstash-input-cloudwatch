@@ -23,7 +23,6 @@ Gem::Specification.new do |s|
     'vendor/**/*',
     'vendor/jar-dependencies/**/*.jar',
     'vendor/jar-dependencies/**/*.rb',
-    'VERSION',
   ]
 
   # Tests
