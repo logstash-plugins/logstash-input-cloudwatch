@@ -168,7 +168,7 @@ guaranteed to work correctly with the AWS SDK.
 [id="plugins-{type}s-{plugin}-filters"]
 ===== `filters`
 
-  * This is a required setting.
+  * This is an optional setting for AWS/EC2 namespace, but required for others.
   * Value type is <<array,array>>
   * There is no default value for this setting.
 
@@ -178,7 +178,7 @@ This needs to follow the AWS convention of specifiying filters.
 Instances: { 'instance-id' => 'i-12344321' }
 Tags: { "tag:Environment" => "Production" }
 Volumes: { 'attachment.status' => 'attached' }
-Each namespace uniquely support certian dimensions. Please consult the documentation
+Each namespace uniquely support certain dimensions. Please consult the documentation
 to ensure you're using valid filters.
 
 [id="plugins-{type}s-{plugin}-interval"]
