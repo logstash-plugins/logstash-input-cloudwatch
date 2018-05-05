@@ -116,7 +116,7 @@ input plugins.
 &nbsp;
 
 [id="plugins-{type}s-{plugin}-access_key_id"]
-===== `access_key_id` 
+===== `access_key_id`
 
   * Value type is <<string,string>>
   * There is no default value for this setting.
@@ -130,7 +130,7 @@ This plugin uses the AWS SDK and supports several ways to get credentials, which
 5. IAM Instance Profile (available when running inside EC2)
 
 [id="plugins-{type}s-{plugin}-aws_credentials_file"]
-===== `aws_credentials_file` 
+===== `aws_credentials_file`
 
   * Value type is <<string,string>>
   * There is no default value for this setting.
@@ -148,7 +148,7 @@ file should look like this:
 
 
 [id="plugins-{type}s-{plugin}-combined"]
-===== `combined` 
+===== `combined`
 
   * Value type is <<boolean,boolean>>
   * Default value is `false`
@@ -166,7 +166,7 @@ This is useful when connecting to S3 compatible services, but beware that these 
 guaranteed to work correctly with the AWS SDK.
 
 [id="plugins-{type}s-{plugin}-filters"]
-===== `filters` 
+===== `filters`
 
   * This is a required setting.
   * Value type is <<array,array>>
