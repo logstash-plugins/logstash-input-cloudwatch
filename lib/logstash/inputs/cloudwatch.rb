@@ -314,6 +314,12 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       @logger.debug "AWS/EBS Volumes: #{volumes}"
 
       { 'VolumeId' => volumes }
+    when 'AWS/ELB'
+      load_balancers = clients[@namespace].describe_load_balancers[:load_balancer_descriptions].flat_map { |e| e[:load_balancer_name] }
+
+      @logger.debug "AWS/ELB ELBs: #{load_balancers}"
+
+      { 'LoadBalancerName' => load_balancers }
     else
       @filters
     end
