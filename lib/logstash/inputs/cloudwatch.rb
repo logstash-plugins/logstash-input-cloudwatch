@@ -224,7 +224,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     event.delete :dimensions
     event[:start_time] = Time.parse(event[:start_time]).utc
     event[:end_time]   = Time.parse(event[:end_time]).utc
-    event[:timestamp]  = event[:end_time]
     LogStash::Util.stringify_symbols(event)
   end
 
