@@ -94,7 +94,7 @@ This plugin supports the following configuration options plus the <<plugins-{typ
 | <<plugins-{type}s-{plugin}-access_key_id>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-aws_credentials_file>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-combined>> |<<boolean,boolean>>|No
-| <<plugins-{type}s-{plugin}-filters>> |<<array,array>>|Yes
+| <<plugins-{type}s-{plugin}-filters>> |<<array,array>>|No
 | <<plugins-{type}s-{plugin}-interval>> |<<number,number>>|No
 | <<plugins-{type}s-{plugin}-metrics>> |<<array,array>>|No
 | <<plugins-{type}s-{plugin}-namespace>> |<<string,string>>|No
@@ -155,7 +155,7 @@ Use this for namespaces that need to combine the dimensions like S3 and SNS.
 [id="plugins-{type}s-{plugin}-filters"]
 ===== `filters`
 
-  * This is a required setting.
+  * This is an optional setting for AWS/EC2 namespace, but required for others.
   * Value type is <<array,array>>
   * There is no default value for this setting.
 
@@ -165,7 +165,7 @@ This needs to follow the AWS convention of specifiying filters.
 Instances: { 'instance-id' => 'i-12344321' }
 Tags: { "tag:Environment" => "Production" }
 Volumes: { 'attachment.status' => 'attached' }
-Each namespace uniquely support certian dimensions. Please consult the documentation
+Each namespace uniquely support certain dimensions. Please consult the documentation
 to ensure you're using valid filters.
 
 [id="plugins-{type}s-{plugin}-interval"]
