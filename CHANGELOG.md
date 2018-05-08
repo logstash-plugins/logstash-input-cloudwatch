@@ -1,8 +1,9 @@
-## 2.1.1
+## 2.0.4
+  - Created branch of plug-in which is compatible to logstash 5.5.x (latest logstash-mixin-aws is causing error with AWS SWK V1)
+  - Metric timestamp now points to actual one returned by Cloudwatch API
+  - Made *filters* optional for *AWS/EC2* namespace optional.
+  - Added support for *AWS/ELB* namespace.
   - Docs: Set the default_codec doc attribute.
-
-## 2.1.0
-  - Add documentation for endpoint, role_arn and role_session_name #29
   - Reduce info level logging verbosity #27
 
 ## 2.0.3
