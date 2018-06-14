@@ -12,7 +12,7 @@ describe LogStash::Inputs::CloudWatch do
     let(:config) {
       {
         'access_key_id' => '1234',
-        'secret_access_key' => 'secret',
+        'secret_access_key' => LogStash::Util::Password.new('secret'),
         'namespace' => 'AWS/EC2',
         'filters' => { 'instance-id' => 'i-12344321' },
         'region' => 'us-east-1'
@@ -24,6 +24,7 @@ describe LogStash::Inputs::CloudWatch do
       expect { subject.register }.to_not raise_error
     end
   end
+
 
   context "EC2 events" do
     let(:config) {
