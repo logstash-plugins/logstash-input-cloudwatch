@@ -4,7 +4,7 @@ require 'aws-sdk'
 
 describe LogStash::Inputs::CloudWatch do
   before do
-    AWS.stub!
+    Aws.config[:stub_responses] = true
     Thread.abort_on_exception = true
   end
 
