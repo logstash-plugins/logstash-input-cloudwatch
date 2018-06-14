@@ -71,7 +71,7 @@ require "aws-sdk"
 #
 
 class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
-  include LogStash::PluginMixins::AwsConfig
+  include LogStash::PluginMixins::AwsConfig::V2
 
   config_name "cloudwatch"
 
@@ -126,8 +126,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   end
 
   def register
-    AWS.config(:logger => @logger)
-
     raise 'Interval needs to be higher than period' unless @interval >= @period
     raise 'Interval must be divisible by period' unless @interval % @period == 0
 
@@ -230,8 +228,9 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     @clients ||= Hash.new do |client_hash, namespace|
       namespace = namespace[4..-1] if namespace[0..3] == 'AWS/'
       namespace = 'EC2' if namespace == 'EBS'
-      cls = AWS.const_get(namespace)
-      client_hash[namespace] = cls::Client.new(aws_options_hash)
+      cls = Aws.const_get(namespace)
+      # TODO: Move logger configuration into mixin.
+      client_hash[namespace] = cls::Client.new(aws_options_hash.merge(:logger => @logger))
     end
   end
 
