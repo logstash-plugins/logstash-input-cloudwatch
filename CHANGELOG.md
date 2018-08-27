@@ -1,3 +1,6 @@
+## 2.2.1
+  - Fixed README.md link to request metric support to point to this repo [#34](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/34)
+
 ## 2.2.0
   - Changed to use the underlying version of the AWS SDK to v2. [#32](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/32)
   - Fixed License definition in gemspec to be valid SPDX identifier [#32](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/32)
