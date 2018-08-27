@@ -70,6 +70,6 @@ Just note that the below configuration doesn't contain the AWS API access inform
 
 See AWS Developer Guide for more information on [namespaces and metrics][2].
 
-[1]: https://github.com/EagerELK/logstash-input-cloudwatch/labels/metric%20support
+[1]: https://github.com/logstash-plugins/logstash-input-cloudwatch/labels/metric%20support
 [2]: http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/aws-namespaces.html
 [3]: http://aws.amazon.com/iam/
