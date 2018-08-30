@@ -1,3 +1,9 @@
+## unreleased
+  - Added features added by community members
+    - Fixed metric timestamp now points to actual one returned by Cloudwatch API. Extracted from [#31](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/31)
+    - Added ability for *filters* to be optional with *AWS/EC2* namespace optional. [#13](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/13)
+    - Added support for *AWS/ELB* namespace. [#21](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/21)
+
 ## 2.2.1
   - Fixed README.md link to request metric support to point to this repo [#34](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/34)
 

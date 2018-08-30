@@ -1,5 +1,13 @@
 # Logstash CloudWatch Input Plugins
 
+[![Travis Build Status](https://travis-ci.org/logstash-plugins/logstash-input-cloudwatch.svg)](https://travis-ci.org/logstash-plugins/logstash-input-cloudwatch)
+
+This is a plugin for [Logstash](https://github.com/elastic/logstash).
+
+It is fully free and fully open source. The license is Apache 2.0, meaning you are pretty much free to use it however you want in whatever way.
+
+## Documentation
+
 Pull events from the Amazon Web Services CloudWatch API.
 
 To use this plugin, you *must* have an AWS account, and the following policy:
