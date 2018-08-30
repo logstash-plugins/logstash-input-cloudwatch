@@ -104,6 +104,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # Set the granularity of the returned datapoints.
   #
   # Must be at least 60 seconds and in multiples of 60.
+  # Default is 300 seconds, which is also default for "Basic" monitoring of EC2 instances.
+  # Reduce it below 300 only if you have enabled "Detailed" monitoring for EC2 instances.
   config :period, :validate => :number, :default => (60 * 5)
 
   # Specify the filters to apply when fetching resources:
@@ -129,13 +131,24 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     raise 'Interval needs to be higher than period' unless @interval >= @period
     raise 'Interval must be divisible by period' unless @interval % @period == 0
 
-    if not defined?(@filters) and not @namespace == "AWS/EC2"
-      raise 'Filters must be defined for all namespaces except AWS/EC2'
+    if not defined?(@filters) and filters_required?(@namespace)
+      raise "Filters must be defined for #{@namespace}"
     end
 
     @last_check = Time.now
   end # def register
 
+
+  def filters_required?(namespace)
+    case namespace
+    when 'AWS/EC2'
+      false
+    when 'AWS/ELB'
+      false
+    else
+      true
+    end
+  end
   # Runs the poller to get metrics for the provided namespace
   #
   # @param queue [Array] Logstash queue
@@ -224,6 +237,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     event.delete :dimensions
     event[:start_time] = Time.parse(event[:start_time]).utc
     event[:end_time]   = Time.parse(event[:end_time]).utc
+    event[:timestamp]  = event[:end_time]
     LogStash::Util.stringify_symbols(event)
   end
 
