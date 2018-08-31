@@ -179,10 +179,11 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
         @logger.debug "DPs: #{datapoints.data}"
 
         # For every event in the resource
-        datapoints[:datapoints].each do |event|
-          event.merge! options
-          event[dimension.to_sym] = resource
-          event = LogStash::Event.new(cleanup(event))
+        datapoints[:datapoints].each do |datapoint|
+          event_hash = datapoint.to_hash
+          event_hash.merge! options
+          event_hash[dimension.to_sym] = resource
+          event = LogStash::Event.new(cleanup(event_hash))
           decorate(event)
           queue << event
         end
@@ -202,14 +203,14 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     datapoints = clients['CloudWatch'].get_metric_statistics(options)
     @logger.debug "DPs: #{datapoints.data}"
 
-    datapoints[:datapoints].each do |event|
-      event.merge! options
-
+    datapoints[:datapoints].each do |datapoint|
+      event_hash = datapoint.to_hash
+      event_hash.merge! options
       aws_filters.each do |dimension|
-        event[dimension[:name].to_sym] = dimension[:value]
+        event_hash[dimension[:name].to_sym] = dimension[:value]
       end
 
-      event = LogStash::Event.new(cleanup(event))
+      event = LogStash::Event.new(cleanup(event_hash))
       decorate(event)
       queue << event
     end
@@ -309,19 +310,19 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     case @namespace
     when 'AWS/EC2'
       if defined?(@filters) != nil
-        instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
-          r[:instances_set].collect{ |i| i[:instance_id] }
+        instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservations].collect do |r|
+          r[:instances].collect{ |i| i[:instance_id] }
         end.flatten
       else
-        instances = clients[@namespace].describe_instances()[:reservation_set].collect do |r|
-          r[:instances_set].collect{ |i| i[:instance_id] }
+        instances = clients[@namespace].describe_instances[:reservations].collect do |r|
+          r[:instances].collect{ |i| i[:instance_id] }
         end.flatten
       end
       @logger.debug "AWS/EC2 Instances: #{instances}"
       { 'InstanceId' => instances }
     when 'AWS/EBS'
-      volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volume_set].collect do |a|
-        a[:attachment_set].collect{ |v| v[:volume_id] }
+      volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volumes].collect do |a|
+        a[:attachments].collect{ |v| v[:volume_id] }
       end.flatten
       @logger.debug "AWS/EBS Volumes: #{volumes}"
       { 'VolumeId' => volumes }
