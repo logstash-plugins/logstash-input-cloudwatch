@@ -128,13 +128,19 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   def register
     raise 'Interval needs to be higher than period' unless @interval >= @period
     raise 'Interval must be divisible by period' unless @interval % @period == 0
-
-    if not defined?(@filters) and not @namespace == "AWS/EC2"
-      raise 'Filters must be defined for all namespaces except AWS/EC2'
-    end
+    raise "Filters must be defined for when using #{@namespace} namespace" if @filters.nil? && filters_required?(@namespace)
 
     @last_check = Time.now
   end # def register
+
+  def filters_required?(namespace)
+    case namespace
+    when 'AWS/EC2'
+      false
+    else
+      true
+    end
+  end
 
   # Runs the poller to get metrics for the provided namespace
   #
@@ -147,12 +153,12 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
       # For every metric
       metrics_for(@namespace).each do |metric|
-        @logger.info "Polling metric #{metric}"
-        if defined?(@filters) != nil
-          @logger.info "Filters: #{aws_filters}"
-          @combined ? from_filters(queue, metric) : from_resources(queue, metric)
-        else
+        @logger.debug "Polling metric #{metric}"
+        if @filters.nil?
           from_resources(queue, metric)
+        else
+          @logger.debug "Filters: #{aws_filters}"
+          @combined ? from_filters(queue, metric) : from_resources(queue, metric)
         end
       end
     end # loop
@@ -177,7 +183,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
         datapoints = clients['CloudWatch'].get_metric_statistics(options)
         @logger.debug "DPs: #{datapoints.data}"
-
         # For every event in the resource
         datapoints[:datapoints].each do |datapoint|
           event_hash = datapoint.to_hash
@@ -264,7 +269,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       clients['CloudWatch'].list_metrics({ namespace: namespace })[:metrics].each do |metrics|
         metrics_hash[namespace].push metrics[:metric_name]
       end
-
       metrics_hash[namespace]
     end
   end
@@ -306,28 +310,28 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   #
   # @return [Array]
   def resources
-    # See http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/CW_Support_For_AWS.html
     case @namespace
-    when 'AWS/EC2'
-      if defined?(@filters) != nil
-        instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservations].collect do |r|
+      when 'AWS/EC2'
+        instances = clients[@namespace].describe_instances(filter_options)[:reservations].collect do |r|
           r[:instances].collect{ |i| i[:instance_id] }
         end.flatten
-      else
-        instances = clients[@namespace].describe_instances[:reservations].collect do |r|
-          r[:instances].collect{ |i| i[:instance_id] }
-        end.flatten
-      end
-      @logger.debug "AWS/EC2 Instances: #{instances}"
+
       { 'InstanceId' => instances }
     when 'AWS/EBS'
       volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volumes].collect do |a|
         a[:attachments].collect{ |v| v[:volume_id] }
       end.flatten
+
       @logger.debug "AWS/EBS Volumes: #{volumes}"
+
       { 'VolumeId' => volumes }
     else
       @filters
     end
   end
+
+  def filter_options
+    @filters.nil? ? {} : { :filters => aws_filters }
+  end
+
 end # class LogStash::Inputs::CloudWatch

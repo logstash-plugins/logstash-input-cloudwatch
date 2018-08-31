@@ -22,7 +22,7 @@ describe LogStash::Inputs::CloudWatch do
   shared_examples_for 'it requires filters' do
     context 'without filters' do
       it "raises an error" do
-        expect { subject.register }.to raise_error
+        expect { subject.register }.to raise_error(StandardError)
       end
     end
 
