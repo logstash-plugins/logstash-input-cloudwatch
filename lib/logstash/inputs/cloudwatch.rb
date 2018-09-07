@@ -116,7 +116,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   #
   # Each namespace uniquely supports certain dimensions. Consult the documentation
   # to ensure you're using valid filters.
-  config :filters, :validate => :array, :required => true
+  config :filters, :validate => :array
 
   # Use this for namespaces that need to combine the dimensions like S3 and SNS.
   config :combined, :validate => :boolean, :default => false
@@ -128,9 +128,19 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   def register
     raise 'Interval needs to be higher than period' unless @interval >= @period
     raise 'Interval must be divisible by period' unless @interval % @period == 0
+    raise "Filters must be defined for when using #{@namespace} namespace" if @filters.nil? && filters_required?(@namespace)
 
     @last_check = Time.now
   end # def register
+
+  def filters_required?(namespace)
+    case namespace
+    when 'AWS/EC2'
+      false
+    else
+      true
+    end
+  end
 
   # Runs the poller to get metrics for the provided namespace
   #
@@ -141,10 +151,15 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
       raise 'No metrics to query' unless metrics_for(@namespace).count > 0
 
+      # For every metric
       metrics_for(@namespace).each do |metric|
         @logger.debug "Polling metric #{metric}"
-        @logger.debug "Filters: #{aws_filters}"
-        @combined ? from_filters(queue, metric) : from_resources(queue, metric)
+        if @filters.nil?
+          from_resources(queue, metric)
+        else
+          @logger.debug "Filters: #{aws_filters}"
+          @combined ? from_filters(queue, metric) : from_resources(queue, metric)
+        end
       end
     end # loop
   end # def run
@@ -168,12 +183,11 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
         datapoints = clients['CloudWatch'].get_metric_statistics(options)
         @logger.debug "DPs: #{datapoints.data}"
-
         # For every event in the resource
-        datapoints[:datapoints].each do |event|
-          event.merge! options
-          event[dimension.to_sym] = resource
-          event = LogStash::Event.new(cleanup(event))
+        datapoints[:datapoints].each do |datapoint|
+          event_hash = datapoint.to_hash.update(options)
+          event_hash[dimension.to_sym] = resource
+          event = LogStash::Event.new(cleanup(event_hash))
           decorate(event)
           queue << event
         end
@@ -193,14 +207,13 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     datapoints = clients['CloudWatch'].get_metric_statistics(options)
     @logger.debug "DPs: #{datapoints.data}"
 
-    datapoints[:datapoints].each do |event|
-      event.merge! options
-
+    datapoints[:datapoints].each do |datapoint|
+      event_hash = datapoint.to_hash.update(options)
       aws_filters.each do |dimension|
-        event[dimension[:name].to_sym] = dimension[:value]
+        event_hash[dimension[:name].to_sym] = dimension[:value]
       end
 
-      event = LogStash::Event.new(cleanup(event))
+      event = LogStash::Event.new(cleanup(event_hash))
       decorate(event)
       queue << event
     end
@@ -254,7 +267,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       clients['CloudWatch'].list_metrics({ namespace: namespace })[:metrics].each do |metrics|
         metrics_hash[namespace].push metrics[:metric_name]
       end
-
       metrics_hash[namespace]
     end
   end
@@ -297,17 +309,15 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   # @return [Array]
   def resources
     case @namespace
-    when 'AWS/EC2'
-      instances = clients[@namespace].describe_instances(filters: aws_filters)[:reservation_set].collect do |r|
-        r[:instances_set].collect{ |i| i[:instance_id] }
-      end.flatten
-
-      @logger.debug "AWS/EC2 Instances: #{instances}"
+      when 'AWS/EC2'
+        instances = clients[@namespace].describe_instances(filter_options)[:reservations].collect do |r|
+          r[:instances].collect{ |i| i[:instance_id] }
+        end.flatten
 
       { 'InstanceId' => instances }
     when 'AWS/EBS'
-      volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volume_set].collect do |a|
-        a[:attachment_set].collect{ |v| v[:volume_id] }
+      volumes = clients[@namespace].describe_volumes(filters: aws_filters)[:volumes].collect do |a|
+        a[:attachments].collect{ |v| v[:volume_id] }
       end.flatten
 
       @logger.debug "AWS/EBS Volumes: #{volumes}"
@@ -317,4 +327,9 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
       @filters
     end
   end
+
+  def filter_options
+    @filters.nil? ? {} : { :filters => aws_filters }
+  end
+
 end # class LogStash::Inputs::CloudWatch

@@ -53,7 +53,7 @@ A sample policy for EC2 metrics is as follows:
 
 See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
 
-# Configuration Example
+===== Configuration Example
 [source, ruby]
     input {
       cloudwatch {
@@ -64,6 +64,7 @@ See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
       }
     }
 
+[source, ruby]
     input {
       cloudwatch {
         namespace => "AWS/EBS"
@@ -73,6 +74,7 @@ See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
       }
     }
 
+[source, ruby]
     input {
       cloudwatch {
         namespace => "AWS/RDS"
@@ -95,7 +97,7 @@ This plugin supports the following configuration options plus the <<plugins-{typ
 | <<plugins-{type}s-{plugin}-aws_credentials_file>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-combined>> |<<boolean,boolean>>|No
 | <<plugins-{type}s-{plugin}-endpoint>> |<<string,string>>|No
-| <<plugins-{type}s-{plugin}-filters>> |<<array,array>>|Yes
+| <<plugins-{type}s-{plugin}-filters>> |<<array,array>>|See <<plugins-{type}s-{plugin}-filters,note>>
 | <<plugins-{type}s-{plugin}-interval>> |<<number,number>>|No
 | <<plugins-{type}s-{plugin}-metrics>> |<<array,array>>|No
 | <<plugins-{type}s-{plugin}-namespace>> |<<string,string>>|No
@@ -168,9 +170,11 @@ guaranteed to work correctly with the AWS SDK.
 [id="plugins-{type}s-{plugin}-filters"]
 ===== `filters` 
 
-  * This is a required setting.
+  * This setting can be required or optional. See note below.
   * Value type is <<array,array>>
   * There is no default value for this setting.
+
+NOTE: This setting is optional when the namespace is `AWS/EC2` - otherwise this is a required field.
 
 Specify the filters to apply when fetching resources:
 
