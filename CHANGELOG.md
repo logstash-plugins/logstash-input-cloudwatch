@@ -1,3 +1,6 @@
+## 2.2.2
+  - Added ability to use AWS/EC2 namespace without requiring filters
+
 ## 2.2.1
   - Fixed README.md link to request metric support to point to this repo [#34](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/34)
 
