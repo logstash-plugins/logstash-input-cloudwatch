@@ -185,8 +185,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
         @logger.debug "DPs: #{datapoints.data}"
         # For every event in the resource
         datapoints[:datapoints].each do |datapoint|
-          event_hash = datapoint.to_hash
-          event_hash.merge! options
+          event_hash = datapoint.to_hash.update(options)
           event_hash[dimension.to_sym] = resource
           event = LogStash::Event.new(cleanup(event_hash))
           decorate(event)
@@ -209,8 +208,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
     @logger.debug "DPs: #{datapoints.data}"
 
     datapoints[:datapoints].each do |datapoint|
-      event_hash = datapoint.to_hash
-      event_hash.merge! options
+      event_hash = datapoint.to_hash.update(options)
       aws_filters.each do |dimension|
         event_hash[dimension[:name].to_sym] = dimension[:value]
       end
