@@ -1,5 +1,8 @@
+## 2.2.3
+  - Fixed issue where metric timestamp was being lost due to over-writing by end_time [#38](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/38)
+
 ## 2.2.2
-  - Added ability to use AWS/EC2 namespace without requiring filters
+  - Added ability to use AWS/EC2 namespace without requiring filters [#36](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/36)
 
 ## 2.2.1
   - Fixed README.md link to request metric support to point to this repo [#34](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/34)
