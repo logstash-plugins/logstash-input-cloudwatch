@@ -53,7 +53,7 @@ A sample policy for EC2 metrics is as follows:
 
 See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
 
-===== Configuration Example
+===== Configuration examples
 [source, ruby]
     input {
       cloudwatch {
@@ -174,15 +174,15 @@ guaranteed to work correctly with the AWS SDK.
   * Value type is <<array,array>>
   * There is no default value for this setting.
 
-NOTE: This setting is optional when the namespace is `AWS/EC2` - otherwise this is a required field.
+NOTE: This setting is optional when the namespace is `AWS/EC2`. Otherwise this is a required field.
 
-Specify the filters to apply when fetching resources:
+Specify the filters to apply when fetching resources. Follow the AWS convention:
 
-This needs to follow the AWS convention of specifiying filters.
-Instances: { 'instance-id' => 'i-12344321' }
-Tags: { "tag:Environment" => "Production" }
-Volumes: { 'attachment.status' => 'attached' }
-Each namespace uniquely support certian dimensions. Please consult the documentation
+* Instances: { 'instance-id' => 'i-12344321' }
+* Tags: { "tag:Environment" => "Production" }
+* Volumes: { 'attachment.status' => 'attached' }
+
+Each namespace uniquely support certain dimensions. Please consult the documentation
 to ensure you're using valid filters.
 
 [id="plugins-{type}s-{plugin}-interval"]
