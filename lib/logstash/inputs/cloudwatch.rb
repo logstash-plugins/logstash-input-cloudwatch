@@ -146,8 +146,9 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   #
   # @param queue [Array] Logstash queue
   def run(queue)
-    @thread = Thread.current
-    Stud.interval(@interval) do
+    while !stop?
+      start = Time.now
+
       @logger.info('Polling CloudWatch API')
 
       raise 'No metrics to query' unless metrics_for(@namespace).count > 0
@@ -162,6 +163,8 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
           @combined ? from_filters(queue, metric) : from_resources(queue, metric)
         end
       end
+      sleep_for = @interval - (Time.now - start)
+      Stud.stoppable_sleep(sleep_for) { stop? } if sleep_for > 0
     end # loop
   end # def run
 
@@ -330,10 +333,6 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
   def filter_options
     @filters.nil? ? {} : { :filters => aws_filters }
-  end
-
-  def stop
-    Stud.stop!(@thread) if @thread
   end
 
 end # class LogStash::Inputs::CloudWatch
