@@ -1,5 +1,5 @@
-## Unreleased
-  - Fixed shutdown handling
+## 2.2.4
+  - Fixed shutdown handling [#43](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/43)
 
 ## 2.2.3
   - Fixed issue where metric timestamp was being lost due to over-writing by end_time [#38](https://github.com/logstash-plugins/logstash-input-cloudwatch/pull/38)
