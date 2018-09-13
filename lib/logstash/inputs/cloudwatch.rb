@@ -146,6 +146,7 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
   #
   # @param queue [Array] Logstash queue
   def run(queue)
+    @thread = Thread.current
     Stud.interval(@interval) do
       @logger.info('Polling CloudWatch API')
 
@@ -329,6 +330,10 @@ class LogStash::Inputs::CloudWatch < LogStash::Inputs::Base
 
   def filter_options
     @filters.nil? ? {} : { :filters => aws_filters }
+  end
+
+  def stop
+    Stud.stop!(@thread) if @thread
   end
 
 end # class LogStash::Inputs::CloudWatch
