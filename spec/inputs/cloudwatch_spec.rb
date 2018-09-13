@@ -51,6 +51,19 @@ describe LogStash::Inputs::CloudWatch do
     end
   end
 
+  describe 'shutdown' do
+    let(:metrics) { double("metrics") }
+    let(:config) { super().merge('namespace' => 'AWS/EC2') }
+
+    before do
+      allow(subject).to receive(:metrics_for).and_return(metrics)
+      allow(metrics).to receive(:count).and_return(1)
+      allow(metrics).to receive(:each).and_return(['DiskWriteBytes'])
+    end
+
+    it_behaves_like "an interruptible input plugin"
+  end
+
   describe '#register' do
 
     context "EC2 namespace" do
