@@ -66,6 +66,19 @@ Just note that the below configuration doesn't contain the AWS API access inform
          region => "us-east-1"
        }
      }
+
+    input {
+        cloudwatch {
+            combined => true
+            namespace => "AWS/ApiGateway"
+            metrics => [ "4XXError", "5XXError", "Count" ]
+            filters => [ "ApiName" => "authentication" "Stage" => "production" ]
+            statistics => [ "SampleCount", "Sum"]
+            region => "us-east-1"
+            period => 300
+            interval => 900
+        }
+    }
 ```
 
 See AWS Developer Guide for more information on [namespaces and metrics][2].
