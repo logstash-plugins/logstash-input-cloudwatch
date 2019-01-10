@@ -84,6 +84,21 @@ See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
       }
     }
 
+[source, ruby]
+    input {
+      cloudwatch {
+        namespace => "sqlserver_test2"
+        metrics => [ "Memory Available Bytes"]
+        filters =>  {
+            InstanceId => "i-xxxxxxxxxxx"
+            objectname => "Memory"
+        }
+        combined => true
+        interval => 600
+        period => 300
+      }
+    }
+
 
 [id="plugins-{type}s-{plugin}-options"]
 ==== Cloudwatch Input Configuration Options
