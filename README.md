@@ -1,5 +1,7 @@
 # Logstash CloudWatch Input Plugins
 
+[![Unit Tests](https://github.com/logstash-plugins/logstash-input-cloudwatch/actions/workflows/unit-tests.yml/badge.svg?branch=main)](https://github.com/logstash-plugins/logstash-input-cloudwatch/actions/workflows/unit-tests.yml)
+
 Pull events from the Amazon Web Services CloudWatch API.
 
 To use this plugin, you *must* have an AWS account, and the following policy:
